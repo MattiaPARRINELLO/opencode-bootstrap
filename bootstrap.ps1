@@ -9,139 +9,121 @@
 
 $ErrorActionPreference = "Stop"
 
-$ConfigRoot  = "$env:USERPROFILE\.config\opencode"
-$LocalRoot   = "$env:USERPROFILE\.opencode"
-$McpDir      = "$env:USERPROFILE\.config\mcp"
+$ConfigRoot = "$env:USERPROFILE\.config\opencode"
+$LocalRoot  = "$env:USERPROFILE\.opencode"
 
 Write-Host "=== OpenCode Bootstrap (Windows) ===" -ForegroundColor Cyan
 Write-Host ""
 
-# --- Collect API keys ---
+# --- Collect API keys (blank = skip that MCP) ---
 Write-Host "--- API Keys (press Enter to skip/disable an MCP) ---" -ForegroundColor Yellow
-$githubToken     = Read-Host "GitHub Personal Access Token [optional]"
-$gmailEmail      = Read-Host "Gmail email [optional]"
-$gmailAppPass    = Read-Host -AsSecureString "Gmail App Password [optional]"; $gmailAppPassText = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($gmailAppPass))
-$magicApiKey     = Read-Host -AsSecureString "21st.dev Magic API Key [optional]"; $magicApiKeyText = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($magicApiKey))
-$quotaWorkspace  = Read-Host "OpenCode Quota Workspace ID [optional]"
+$githubToken    = Read-Host "GitHub Personal Access Token [optional]"
+$gmailEmail     = Read-Host "Gmail email [optional]"
+$gmailAppPass   = Read-Host "Gmail App Password [optional]"
+$magicApiKey    = Read-Host "21st.dev Magic API Key [optional]"
+$quotaWsId      = Read-Host "OpenCode Quota Workspace ID [optional]"
 Write-Host ""
 
 # --- Create directories ---
-@(
+foreach ($dir in @(
     "$ConfigRoot\skills",
     "$ConfigRoot\opencode-quota",
     "$LocalRoot\plugins",
-    "$LocalRoot\skills",
-    $McpDir
-) | ForEach-Object { New-Item -ItemType Directory -Path $_ -Force | Out-Null }
+    "$LocalRoot\skills"
+)) {
+    New-Item -ItemType Directory -Path $dir -Force | Out-Null
+}
 
-# Normalise home path for JSON (use forward slashes)
-$homeJson = $env:USERPROFILE -replace '\\', '/'
+# --- Build MCP config as a hashtable ---
+$mcp = @{}
 
-# --- Build MCP config entries ---
-$mcpEntries = @"
-    "filesystem": {
-      "type": "local",
-      "enabled": true,
-      "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "$homeJson"]
-    },
-    "puppeteer": {
-      "type": "local",
-      "enabled": true,
-      "command": ["npx", "-y", "@modelcontextprotocol/server-puppeteer"]
-    }
-"@
+$mcp["filesystem"] = @{
+    type    = "local"
+    enabled = $true
+    command = @("npx", "-y", "@modelcontextprotocol/server-filesystem", $env:USERPROFILE -replace '\\', '/')
+}
+
+$mcp["puppeteer"] = @{
+    type    = "local"
+    enabled = $true
+    command = @("npx", "-y", "@modelcontextprotocol/server-puppeteer")
+}
 
 if ($env:MEMORY_FILE_PATH) {
-    $memPath = $env:MEMORY_FILE_PATH -replace '\\', '/'
-    $mcpEntries += @",
-    "memory": {
-      "type": "local",
-      "enabled": true,
-      "command": ["npx", "-y", "@modelcontextprotocol/server-memory"],
-      "environment": {
-        "MEMORY_FILE_PATH": "$memPath"
-      }
+    $mcp["memory"] = @{
+        type    = "local"
+        enabled = $true
+        command = @("npx", "-y", "@modelcontextprotocol/server-memory")
+        environment = @{
+            MEMORY_FILE_PATH = $env:MEMORY_FILE_PATH -replace '\\', '/'
+        }
     }
-"@
 }
 
 if ($githubToken) {
-    $mcpEntries += @",
-    "github": {
-      "type": "local",
-      "enabled": true,
-      "command": ["npx", "-y", "@modelcontextprotocol/server-github"],
-      "environment": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "$githubToken"
-      }
+    $mcp["github"] = @{
+        type    = "local"
+        enabled = $true
+        command = @("npx", "-y", "@modelcontextprotocol/server-github")
+        environment = @{
+            GITHUB_PERSONAL_ACCESS_TOKEN = $githubToken
+        }
     }
-"@
 }
 
-if ($gmailEmail -and $gmailAppPassText) {
-    $mcpEntries += @",
-    "gmail": {
-      "type": "local",
-      "enabled": true,
-      "command": ["npx", "-y", "gmail-mcp-imap"],
-      "environment": {
-        "GMAIL_EMAIL": "$gmailEmail",
-        "GMAIL_APP_PASSWORD": "$gmailAppPassText"
-      }
+if ($gmailEmail -and $gmailAppPass) {
+    $mcp["gmail"] = @{
+        type    = "local"
+        enabled = $true
+        command = @("npx", "-y", "gmail-mcp-imap")
+        environment = @{
+            GMAIL_EMAIL         = $gmailEmail
+            GMAIL_APP_PASSWORD  = $gmailAppPass
+        }
     }
-"@
 }
 
-if ($magicApiKeyText) {
-    $mcpEntries += @",
-    "magic": {
-      "type": "local",
-      "enabled": true,
-      "command": ["npx", "-y", "@21st-dev/magic@latest"],
-      "environment": {
-        "API_KEY": "$magicApiKeyText"
-      }
+if ($magicApiKey) {
+    $mcp["magic"] = @{
+        type    = "local"
+        enabled = $true
+        command = @("npx", "-y", "@21st-dev/magic@latest")
+        environment = @{
+            API_KEY = $magicApiKey
+        }
     }
-"@
 }
 
 # --- Write main opencode.json ---
-$mainConfig = @"
-{
-  "`$schema": "https://opencode.ai/config.json",
-  "plugin": [
-    "opencode-agent-skills",
-    "background-agents",
-    "btw-opencode",
-    "@tarquinen/opencode-dcp@latest",
-    "superpowers@git+https://github.com/obra/superpowers.git",
-    "@slkiser/opencode-quota"
-  ],
-  "mcp": {
-$mcpEntries
-  }
+$config = @{
+    '$schema' = "https://opencode.ai/config.json"
+    plugin = @(
+        "opencode-agent-skills",
+        "background-agents",
+        "btw-opencode",
+        "@tarquinen/opencode-dcp@latest",
+        "superpowers@git+https://github.com/obra/superpowers.git",
+        "@slkiser/opencode-quota"
+    )
+    mcp = $mcp
 }
-"@
 
-Set-Content -Path "$ConfigRoot\opencode.json" -Value $mainConfig -Encoding UTF8
-Write-Host "[OK] Wrote $ConfigRoot\opencode.json" -ForegroundColor Green
+$configJson = $config | ConvertTo-Json -Depth 5
+Set-Content -Path "$ConfigRoot\opencode.json" -Value $configJson -Encoding UTF8
+Write-Host "[OK] $ConfigRoot\opencode.json" -ForegroundColor Green
 
 # --- Write local opencode.json (graphify plugin) ---
-$localConfig = @"
-{
-  "`$schema": "https://opencode.ai/config.json",
-  "plugin": [
-    ".opencode/plugins/graphify.js"
-  ]
+$localConfig = @{
+    '$schema' = "https://opencode.ai/config.json"
+    plugin = @(".opencode/plugins/graphify.js")
 }
-"@
 
-Set-Content -Path "$LocalRoot\opencode.json" -Value $localConfig -Encoding UTF8
-Write-Host "[OK] Wrote $LocalRoot\opencode.json" -ForegroundColor Green
+$localConfig | ConvertTo-Json -Depth 3 | Set-Content -Path "$LocalRoot\opencode.json" -Encoding UTF8
+Write-Host "[OK] $LocalRoot\opencode.json" -ForegroundColor Green
 
 # --- Write graphify plugin ---
-$graphifyPlugin = @'
-// graphify OpenCode plugin - Windows compatible
+@'
+// graphify OpenCode plugin
 // Injects a knowledge graph reminder before bash tool calls when the graph exists.
 import { existsSync } from "fs";
 import { join } from "path";
@@ -163,105 +145,82 @@ export const GraphifyPlugin = async ({ directory }) => {
     },
   };
 };
-'@
+'@ | Set-Content -Path "$LocalRoot\plugins\graphify.js" -Encoding UTF8
 
-Set-Content -Path "$LocalRoot\plugins\graphify.js" -Value $graphifyPlugin -Encoding UTF8
-Write-Host "[OK] Wrote $LocalRoot\plugins\graphify.js" -ForegroundColor Green
+Write-Host "[OK] $LocalRoot\plugins\graphify.js" -ForegroundColor Green
 
-# --- Write AGENTS.md (no pkexec on Windows) ---
-$agentsMd = @"
+# --- Write AGENTS.md ---
+@"
 # Global Rules
 
 ## Auto-loading des skills
 
-Les skills suivants doivent être chargés AUTOMATIQUEMENT quand le contexte le nécessite,
-sans attendre que l'utilisateur le demande :
+Les skills suivants doivent être chargés automatiquement :
 
-### Toujours actif (meta-skill)
-- `output-skill` — Empêche la troncature du code et les réponses incomplètes.
+### Toujours actif
+- \`output-skill\` — Empêche la troncature du code.
 
-### Design / UI (chargement contextuel automatique)
-- Créer ou modifier une interface → charge `impeccable` puis exécute /impeccable craft
-- Design minimaliste/éditorial (Notion, Linear, documentation) → `minimalist-skill` + `impeccable`
-- Design brutaliste/technique (terminal, blueprint, data-heavy) → `brutalist-skill` + `impeccable`
-- Présentation/slides → `frontend-slides`
-- Recherche design/inspiration → `ui-ux-pro-max`
+### Design / UI
+- Créer ou modifier une interface → \`impeccable\`
+- Design minimaliste/éditorial → \`minimalist-skill\` + \`impeccable\`
+- Design brutaliste/technique → \`brutalist-skill\` + \`impeccable\`
+- Présentation/slides → \`frontend-slides\`
+- Recherche design → \`ui-ux-pro-max\`
 
 ### Testing / Browser
-- Tester une page web ou automatiser le navigateur → `playwright-skill`
+- Tester une page web → \`playwright-skill\`
 
-### Ne JAMAIS charger automatiquement
-- Les skills supprimés n'existent plus. Ne pas tenter de les charger.
-"@
+### Ne JAMAIS charger
+- Les skills supprimés.
+"@ | Set-Content -Path "$ConfigRoot\AGENTS.MD" -Encoding UTF8
 
-Set-Content -Path "$ConfigRoot\AGENTS.MD" -Value $agentsMd -Encoding UTF8
-Write-Host "[OK] Wrote $ConfigRoot\AGENTS.MD" -ForegroundColor Green
+Write-Host "[OK] $ConfigRoot\AGENTS.MD" -ForegroundColor Green
 
 # --- Write DCP config ---
-$dcpConfig = @'
+@'
 {
   "$schema": "https://raw.githubusercontent.com/Opencode-DCP/opencode-dynamic-context-pruning/master/dcp.schema.json"
 }
-'@
+'@ | Set-Content -Path "$ConfigRoot\dcp.jsonc" -Encoding UTF8
 
-Set-Content -Path "$ConfigRoot\dcp.jsonc" -Value $dcpConfig -Encoding UTF8
-Write-Host "[OK] Wrote $ConfigRoot\dcp.jsonc" -ForegroundColor Green
+Write-Host "[OK] $ConfigRoot\dcp.jsonc" -ForegroundColor Green
 
 # --- Write TUI config ---
-$tuiConfig = @'
+@'
 {
   "$schema": "https://opencode.ai/tui.json",
   "plugin": ["@slkiser/opencode-quota"]
 }
-'@
+'@ | Set-Content -Path "$ConfigRoot\tui.json" -Encoding UTF8
 
-Set-Content -Path "$ConfigRoot\tui.json" -Value $tuiConfig -Encoding UTF8
-Write-Host "[OK] Wrote $ConfigRoot\tui.json" -ForegroundColor Green
+Write-Host "[OK] $ConfigRoot\tui.json" -ForegroundColor Green
 
 # --- Write quota config ---
-if ($quotaWorkspace) {
-    $quotaConfig = @"
-{
-  "workspace_id": "$quotaWorkspace"
-}
-"@
-    Set-Content -Path "$ConfigRoot\opencode-quota\opencode-go.json" -Value $quotaConfig -Encoding UTF8
-    Write-Host "[OK] Wrote quota config (auth cookie must be added manually)" -ForegroundColor Green
+if ($quotaWsId) {
+    @{
+        workspace_id = $quotaWsId
+    } | ConvertTo-Json | Set-Content -Path "$ConfigRoot\opencode-quota\opencode-go.json" -Encoding UTF8
+    Write-Host "[OK] Quota config (auth cookie to add manually)" -ForegroundColor Green
 }
 
 # --- Write package.json ---
-$packageJson = @'
+@'
 {
   "dependencies": {
     "@opencode-ai/plugin": "1.14.20",
     "unique-names-generator": "^4.7.1"
   }
 }
-'@
+'@ | Set-Content -Path "$ConfigRoot\package.json" -Encoding UTF8
 
-Set-Content -Path "$ConfigRoot\package.json" -Value $packageJson -Encoding UTF8
-Write-Host "[OK] Wrote $ConfigRoot\package.json" -ForegroundColor Green
+Write-Host "[OK] $ConfigRoot\package.json" -ForegroundColor Green
 
-# --- Skill copy instructions ---
+# --- Instructions ---
 Write-Host ""
 Write-Host "=== SKILL INSTALLATION ===" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "Skills must be copied from your reference machine or cloned from source."
-Write-Host "Expected directories:"
-Write-Host "  $ConfigRoot\skills\  (8+ skills)"
-Write-Host "  $LocalRoot\skills\   (taste-skill, impeccable, playwright)"
-Write-Host ""
-Write-Host "To copy from an existing installation:"
+Write-Host "Copy skills from your reference machine:"
 Write-Host "  Copy-Item -Recurse ""source\.config\opencode\skills\*"" ""$ConfigRoot\skills\"""
+Write-Host "  Copy-Item -Recurse ""source\.opencode\skills\*"" ""$LocalRoot\skills\"""
 Write-Host ""
-
-# --- npx package cache note ---
-Write-Host "=== NOTE ===" -ForegroundColor Yellow
-Write-Host "The first time opencode starts, npx will download all MCP packages."
-Write-Host "This requires a working internet connection and may take a few minutes."
-Write-Host ""
-
-# --- Verification ---
 Write-Host "=== DONE ===" -ForegroundColor Cyan
 Write-Host "Run: opencode ask 'Check my OpenCode setup is complete'" -ForegroundColor Green
-Write-Host ""
