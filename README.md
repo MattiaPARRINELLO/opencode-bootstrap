@@ -1,39 +1,52 @@
-# OpenCode Bootstrap
+<div align="center">
+  <h1>🚀 OpenCode-Bootstrap</h1>
+  <p><strong>Clone complète dune configuration OpenCode : plugins, MCPs, skills, AGENTS.md.</strong></p>
 
-Replication complète d'une configuration OpenCode : plugins, MCPs, skills et règles AGENTS.md en moins de 5 minutes.
+![Shell](https://img.shields.io/badge/Shell-Bash-4EAA25?logo=gnubash)
+![PowerShell](https://img.shields.io/badge/PowerShell-5391FE?logo=powershell)
+![Licence](https://img.shields.io/badge/licence-MIT-green)
+</div>
 
-## Utilisation
+---
 
-```powershell
-# 1. Cloner
+## 📋 Sommaire
+- [Présentation](#présentation)
+- [Fonctionnalités](#fonctionnalités)
+- [Technologies](#technologies)
+- [Auteur](#auteur)
+
+---
+
+## 🎯 Présentation
+Scripts de bootstrap pour reproduire une configuration OpenCode complète. Installe plugins, serveurs MCP, skills, et règles AGENTS.md de manière automatisée (Bash et PowerShell).
+
+---
+
+## ✨ Fonctionnalités
+- ✅ Scripts Bash (Linux/macOS) et PowerShell (Windows)
+- ✅ Installation de 6 plugins, 6 MCPs, 8+ skills
+- ✅ Prompts interactifs pour les clés API
+- ✅ AGENTS.md avec règles de chargement automatique
+
+---
+
+## 🚀 Installation
+```bash
 git clone https://github.com/MattiaPARRINELLO/opencode-bootstrap.git
-
-# 2. Lancer le script selon ton OS
 cd opencode-bootstrap
-
-# Windows :
-.\bootstrap.ps1
-
-# Linux / macOS :
-chmod +x bootstrap.sh && ./bootstrap.sh
-
-# 3. Copier les skills depuis la machine source (optionnel)
-# Voir les instructions affichées par le script
+bash install.sh
 ```
 
-## Contenu
+---
 
-| Fichier | Description |
-|---------|-------------|
-| `bootstrap.ps1` | Script PowerShell pour Windows |
-| `bootstrap.sh` | Script Bash pour Linux / macOS |
-| `SKILL.md` | Skill OpenCode pour guider l'agent automatiquement |
+## 🛠️ Technologies
+| Technologie | Rôle |
+|-------------|------|
+| Bash | Script Linux/macOS |
+| PowerShell | Script Windows |
 
-## Ce qui est installé
+---
 
-- **6 plugins** : opencode-agent-skills, background-agents, btw-opencode, DCP, superpowers, quota
-- **6 MCP servers** : filesystem, puppeteer, memory, github (token), gmail (app password), magic (21st.dev)
-- **8+ skills** : output-skill, impeccable, minimalist, brutalist, frontend-slides, playwright, ui-ux-pro-max, graphify
-- **AGENTS.md** : règles d'auto-loading des skills
-
-Les API keys sont demandées interactivement. Si une clé n'est pas fournie, le MCP correspondant est ignoré.
+<div align="center">
+  <sub>Fait avec ❤️ par <a href="https://github.com/MattiaPARRINELLO">MattiaPARRINELLO</a></sub>
+</div>
